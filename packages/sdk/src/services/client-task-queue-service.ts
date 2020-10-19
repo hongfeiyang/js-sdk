@@ -1,4 +1,4 @@
-import { ClientTask, ClientTaskQueueResponse } from '@meeco/vault-api-sdk';
+import { ClientTask, ClientTaskQueueApi, ClientTaskQueueResponse } from '@meeco/vault-api-sdk';
 import { AuthData } from '../models/auth-data';
 import { EncryptionKey } from '../models/encryption-key';
 import { MeecoServiceError } from '../models/service-error';
@@ -14,16 +14,18 @@ interface IFailedClientTask extends ClientTask {
   failureReason: any;
 }
 
-export class ClientTaskQueueService extends Service {
+export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
+  public getAPI(vaultToken: string): ClientTaskQueueApi {
+    return this.vaultAPIFactory(vaultToken).ClientTaskQueueApi;
+  }
+
   public async list(
     vaultAccessToken: string,
     supressChangingState: boolean = true,
     state: State = State.Todo,
     options?: { nextPageAfter?: string; perPage?: number }
   ): Promise<ClientTaskQueueResponse> {
-    const result = await this.vaultAPIFactory(
-      vaultAccessToken
-    ).ClientTaskQueueApi.clientTaskQueueGet(
+    const result = await this.getAPI(vaultAccessToken).clientTaskQueueGet(
       options?.nextPageAfter,
       options?.perPage,
       supressChangingState,
@@ -31,7 +33,6 @@ export class ClientTaskQueueService extends Service {
     );
 
     if (resultHasNext(result) && options?.perPage === undefined) {
-      // TODO-- should pass a warning logger!
       this.logger.warn('Some results omitted, but page limit was not explicitly set');
     }
 
@@ -41,26 +42,24 @@ export class ClientTaskQueueService extends Service {
   public async listAll(
     vaultAccessToken: string,
     supressChangingState: boolean = true,
-    state: State = State.Todo,
-    options?: {
-      nextPageAfter?: string;
-      perPage?: number;
-    }
+    state: State = State.Todo
   ): Promise<ClientTaskQueueResponse> {
-    const api = this.vaultAPIFactory(vaultAccessToken).ClientTaskQueueApi;
+    const api = this.getAPI(vaultAccessToken);
     return getAllPaged(cursor =>
       api.clientTaskQueueGet(cursor, undefined, supressChangingState, state)
     ).then(reducePages);
   }
 
   public async countOutstandingTasks(vaultAccessToken: string): Promise<IOutstandingClientTasks> {
-    const todoTasks = await this.vaultAPIFactory(
-      vaultAccessToken
-    ).ClientTaskQueueApi.clientTaskQueueGet(undefined, undefined, true, State.Todo);
+    const api = this.getAPI(vaultAccessToken);
+    const todoTasks = await api.clientTaskQueueGet(undefined, undefined, true, State.Todo);
 
-    const inProgressTasks = await this.vaultAPIFactory(
-      vaultAccessToken
-    ).ClientTaskQueueApi.clientTaskQueueGet(undefined, undefined, true, State.InProgress);
+    const inProgressTasks = await api.clientTaskQueueGet(
+      undefined,
+      undefined,
+      true,
+      State.InProgress
+    );
 
     return {
       todo: todoTasks.client_tasks.length,
