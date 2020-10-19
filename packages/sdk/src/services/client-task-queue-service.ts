@@ -114,9 +114,8 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
             itemsApi.itemsIdGet(task.target_id),
             sharesApi.itemsIdSharesGet(task.target_id),
           ]);
-          const decryptedSlots = await ItemService.decryptAllSlots(
-            item.slots,
-            authData.data_encryption_key
+          const decryptedSlots = await Promise.all(
+            item.slots.map(s => ItemService.decryptSlot(s, authData.data_encryption_key))
           );
           const dek = Service.cryppo.generateRandomKey();
           const newEncryptedSlots = await new ShareService(
