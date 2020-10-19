@@ -1,13 +1,10 @@
 import { ClientTask, ClientTaskQueueResponse } from '@meeco/vault-api-sdk';
 import { AuthData } from '../models/auth-data';
 import { EncryptionKey } from '../models/encryption-key';
-import { Environment } from '../models/environment';
 import { MeecoServiceError } from '../models/service-error';
-import { VaultAPIFactory, vaultAPIFactory } from '../util/api-factory';
-import { IFullLogger, Logger, noopLogger, toFullLogger } from '../util/logger';
 import { getAllPaged, reducePages, resultHasNext } from '../util/paged';
-import cryppo from './cryppo-service';
 import { ItemService } from './item-service';
+import Service from './service';
 import { ShareService } from './share-service';
 
 /**
@@ -17,21 +14,7 @@ interface IFailedClientTask extends ClientTask {
   failureReason: any;
 }
 
-export class ClientTaskQueueService {
-  private vaultAPIFactory: VaultAPIFactory;
-  private cryppo = (<any>global).cryppo || cryppo;
-
-  private log: IFullLogger;
-
-  constructor(private environment: Environment, log: Logger = noopLogger) {
-    this.vaultAPIFactory = vaultAPIFactory(environment);
-    this.log = toFullLogger(log);
-  }
-
-  public setLogger(logger: Logger) {
-    this.log = toFullLogger(logger);
-  }
-
+export class ClientTaskQueueService extends Service {
   public async list(
     vaultAccessToken: string,
     supressChangingState: boolean = true,
@@ -49,7 +32,7 @@ export class ClientTaskQueueService {
 
     if (resultHasNext(result) && options?.perPage === undefined) {
       // TODO-- should pass a warning logger!
-      this.log.warn('Some results omitted, but page limit was not explicitly set');
+      this.logger.warn('Some results omitted, but page limit was not explicitly set');
     }
 
     return result;
@@ -136,7 +119,7 @@ export class ClientTaskQueueService {
             item.slots,
             authData.data_encryption_key
           );
-          const dek = this.cryppo.generateRandomKey();
+          const dek = Service.cryppo.generateRandomKey();
           const newEncryptedSlots = await new ShareService(
             this.environment
           ).convertSlotsToEncryptedValuesForShare(decryptedSlots, EncryptionKey.fromRaw(dek));
@@ -148,7 +131,7 @@ export class ClientTaskQueueService {
           const slotValues = [].concat.apply([], nestedSlotValues);
           const shareDeks = await Promise.all(
             shares.shares.map(async share => {
-              const encryptedDek = await this.cryppo.encryptWithPublicKey({
+              const encryptedDek = await Service.cryppo.encryptWithPublicKey({
                 publicKeyPem: share.public_key,
                 data: dek,
               });
