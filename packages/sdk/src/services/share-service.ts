@@ -277,6 +277,7 @@ export class ShareService extends Service<SharesApi> {
     );
 
     // put items/{id}/shares
+    // TODO skip/alert if no shares
     return await this.getAPI(user.vault_access_token).itemsIdSharesPut(
       itemId,
       putItemSharesRequest
