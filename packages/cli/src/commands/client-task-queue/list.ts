@@ -46,12 +46,12 @@ export default class ClientTaskQueueList extends MeecoCommand {
       }
       const response = all
         ? await service.listAll(
-            authConfig.vault_access_token,
+            authConfig,
             supressChangingState === 'false' ? false : true,
             clientTaskQueueState
           )
         : await service.list(
-            authConfig.vault_access_token,
+            authConfig,
             supressChangingState === 'false' ? false : true,
             clientTaskQueueState
           );

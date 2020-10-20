@@ -53,15 +53,15 @@ export default class ClientTaskQueueRunBatch extends MeecoCommand {
       }
       const numberOfTasks = args.numberOfTasks;
       const clientTaskList = await service.list(
-        authConfig.vault_access_token,
+        authConfig,
         supressChangingState === 'false' ? false : true,
         clientTaskQueueState,
         { perPage: numberOfTasks }
       );
 
       const executionResults = await service.executeClientTasks(
-        clientTaskList.client_tasks,
-        authConfig
+        authConfig,
+        clientTaskList.client_tasks
       );
 
       this.printYaml(executionResults);

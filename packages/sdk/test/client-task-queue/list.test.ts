@@ -15,7 +15,7 @@ describe('Client-task-queue list', () => {
     )
     .it('list task that client suppose to perform', async () => {
       const result = await new ClientTaskQueueService(environment).list(
-        testUserAuth.vault_access_token,
+        testUserAuth,
         true,
         State.Todo
       );
@@ -44,7 +44,7 @@ describe('Client-task-queue list', () => {
     )
     .it('list all tasks for client when paginated', async () => {
       const result = await new ClientTaskQueueService(environment).listAll(
-        testUserAuth.vault_access_token,
+        testUserAuth,
         true,
         State.Todo
       );

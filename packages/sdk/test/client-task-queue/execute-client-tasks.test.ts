@@ -28,8 +28,8 @@ describe('Client-task-queue list', () => {
     .mockCryppo()
     .it('list task that client suppose to perform', async () => {
       const result = await new ClientTaskQueueService(environment).executeClientTasks(
-        listOfClientTasks,
-        testUserAuth
+        testUserAuth,
+        listOfClientTasks
       );
 
       expect(result.completedTasks.length).to.equal(1);

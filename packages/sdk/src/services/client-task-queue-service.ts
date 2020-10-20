@@ -1,10 +1,9 @@
 import { ClientTask, ClientTaskQueueApi, ClientTaskQueueResponse } from '@meeco/vault-api-sdk';
-import { AuthData } from '../models/auth-data';
 import { EncryptionKey } from '../models/encryption-key';
 import { MeecoServiceError } from '../models/service-error';
 import { getAllPaged, reducePages, resultHasNext } from '../util/paged';
 import { ItemService } from './item-service';
-import Service, { IPageOptions } from './service';
+import Service, { IDEK, IPageOptions, IVaultToken } from './service';
 import { ShareService } from './share-service';
 
 /**
@@ -20,12 +19,12 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
   }
 
   public async list(
-    vaultAccessToken: string,
+    credentials: IVaultToken,
     supressChangingState: boolean = true,
     state: State = State.Todo,
     options?: IPageOptions
   ): Promise<ClientTaskQueueResponse> {
-    const result = await this.getAPI(vaultAccessToken).clientTaskQueueGet(
+    const result = await this.getAPI(credentials.vault_access_token).clientTaskQueueGet(
       options?.nextPageAfter,
       options?.perPage,
       supressChangingState,
@@ -40,18 +39,18 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
   }
 
   public async listAll(
-    vaultAccessToken: string,
+    credentials: IVaultToken,
     supressChangingState: boolean = true,
     state: State = State.Todo
   ): Promise<ClientTaskQueueResponse> {
-    const api = this.getAPI(vaultAccessToken);
+    const api = this.getAPI(credentials.vault_access_token);
     return getAllPaged(cursor =>
       api.clientTaskQueueGet(cursor, undefined, supressChangingState, state)
     ).then(reducePages);
   }
 
-  public async countOutstandingTasks(vaultAccessToken: string): Promise<IOutstandingClientTasks> {
-    const api = this.getAPI(vaultAccessToken);
+  public async countOutstandingTasks(credentials: IVaultToken): Promise<IOutstandingClientTasks> {
+    const api = this.getAPI(credentials.vault_access_token);
     const todoTasks = await api.clientTaskQueueGet(undefined, undefined, true, State.Todo);
 
     const inProgressTasks = await api.clientTaskQueueGet(
@@ -68,8 +67,8 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
   }
 
   public async executeClientTasks(
-    listOfClientTasks: ClientTask[],
-    authData: AuthData
+    credentials: IVaultToken & IDEK,
+    listOfClientTasks: ClientTask[]
   ): Promise<{ completedTasks: ClientTask[]; failedTasks: ClientTask[] }> {
     const remainingClientTasks: ClientTask[] = [];
     const itemUpdateSharesTasks: ClientTask[] = [];
@@ -91,17 +90,18 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     const updateSharesTasksResult: {
       completedTasks: ClientTask[];
       failedTasks: IFailedClientTask[];
-    } = await this.updateSharesClientTasks(itemUpdateSharesTasks, authData);
+    } = await this.updateSharesClientTasks(credentials, itemUpdateSharesTasks);
 
     return updateSharesTasksResult;
   }
 
   public async updateSharesClientTasks(
-    listOfClientTasks: ClientTask[],
-    authData: AuthData
+    credentials: IVaultToken & IDEK,
+    listOfClientTasks: ClientTask[]
   ): Promise<{ completedTasks: ClientTask[]; failedTasks: IFailedClientTask[] }> {
-    const sharesApi = this.vaultAPIFactory(authData.vault_access_token).SharesApi;
-    const itemsApi = this.vaultAPIFactory(authData.vault_access_token).ItemApi;
+    const { vault_access_token, data_encryption_key } = credentials;
+    const sharesApi = this.vaultAPIFactory(vault_access_token).SharesApi;
+    const itemsApi = this.vaultAPIFactory(vault_access_token).ItemApi;
 
     const taskReports = await Promise.all(
       listOfClientTasks.map(async task => {
@@ -115,7 +115,7 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
             sharesApi.itemsIdSharesGet(task.target_id),
           ]);
           const decryptedSlots = await Promise.all(
-            item.slots.map(s => ItemService.decryptSlot(s, authData.data_encryption_key))
+            item.slots.map(s => ItemService.decryptSlot(s, data_encryption_key))
           );
           const dek = Service.cryppo.generateRandomKey();
           const newEncryptedSlots = await new ShareService(
