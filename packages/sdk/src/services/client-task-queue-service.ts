@@ -4,7 +4,7 @@ import { EncryptionKey } from '../models/encryption-key';
 import { MeecoServiceError } from '../models/service-error';
 import { getAllPaged, reducePages, resultHasNext } from '../util/paged';
 import { ItemService } from './item-service';
-import Service from './service';
+import Service, { IPageOptions } from './service';
 import { ShareService } from './share-service';
 
 /**
@@ -23,7 +23,7 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     vaultAccessToken: string,
     supressChangingState: boolean = true,
     state: State = State.Todo,
-    options?: { nextPageAfter?: string; perPage?: number }
+    options?: IPageOptions
   ): Promise<ClientTaskQueueResponse> {
     const result = await this.getAPI(vaultAccessToken).clientTaskQueueGet(
       options?.nextPageAfter,
