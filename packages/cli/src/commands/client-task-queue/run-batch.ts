@@ -1,41 +1,40 @@
-import { ClientTaskQueueService, State } from '@meeco/sdk';
+import { ClientTaskQueueService, ClientTaskState } from '@meeco/sdk';
+import { ClientTask } from '@meeco/vault-api-sdk';
 import { flags as _flags } from '@oclif/command';
 import { AuthConfig } from '../../configs/auth-config';
-import { authFlags } from '../../flags/auth-flags';
+import authFlags from '../../flags/auth-flags';
+import pageFlags from '../../flags/page-flags';
 import MeecoCommand from '../../util/meeco-command';
 
 export default class ClientTaskQueueRunBatch extends MeecoCommand {
-  static description = 'Load and run a batch of ClientTasks from the queue';
-  static examples = [`meeco client-task-queue:run-batch -a path/to/auth.yaml 10`];
+  static description = 'Load and run Client Tasks from the queue';
+  static examples = [
+    `meeco client-task-queue:run-batch --limit 10`,
+    `meeco client-task-queue:run-batch --all --state failed`,
+  ];
 
   static flags = {
     ...MeecoCommand.flags,
     ...authFlags,
-    supressChangingState: _flags.string({
+    ...pageFlags,
+    limit: _flags.integer({
       required: false,
-      default: 'true',
-      description: 'suppress transitioning tasks in the response to in_progress: true, false',
+      char: 'l',
+      description: `Run at most 'limit' many Client Tasks. Defaults to the API page size (200)`,
+      exclusive: ['all'],
     }),
-    state: _flags.string({
+    state: _flags.enum({
       char: 's',
       required: false,
-      default: 'Todo',
-      description: 'Client Task Queue avalible states: ' + Object.keys(State),
+      default: ClientTaskState.Todo,
+      options: [ClientTaskState.Todo, ClientTaskState.Failed],
+      description: 'Run only Client Tasks with the given state',
     }),
   };
 
-  static args = [
-    {
-      name: 'numberOfTasks',
-      description: 'number of tasks to fetch and execute',
-      required: false,
-      default: undefined,
-    },
-  ];
-
   async run() {
-    const { flags, args } = this.parse(this.constructor as typeof ClientTaskQueueRunBatch);
-    const { supressChangingState, state, auth } = flags;
+    const { flags } = this.parse(this.constructor as typeof ClientTaskQueueRunBatch);
+    const { all, state, limit, auth } = flags;
     const environment = await this.readEnvironmentFile();
     const authConfig = await this.readConfigFromFile(AuthConfig, auth);
     const service = new ClientTaskQueueService(environment);
@@ -44,25 +43,25 @@ export default class ClientTaskQueueRunBatch extends MeecoCommand {
       this.error('Must specify a valid auth config file');
     }
 
-    try {
-      const clientTaskQueueState = State[state];
-      if (state && clientTaskQueueState === undefined) {
-        this.error(
-          'Invalid state provided, state argument value must be one of this: ' + Object.keys(State)
-        );
-      }
-      const numberOfTasks = args.numberOfTasks;
-      const clientTaskList = await service.list(
-        authConfig,
-        supressChangingState === 'false' ? false : true,
-        clientTaskQueueState,
-        { perPage: numberOfTasks }
-      );
+    if (limit && limit <= 0) {
+      this.error('Must specify a positive limit');
+    }
 
-      const executionResults = await service.executeClientTasks(
-        authConfig,
-        clientTaskList.client_tasks
-      );
+    try {
+      let tasks: ClientTask[];
+      if (all) {
+        tasks = await service.listAll(authConfig, true, state);
+      } else if (limit) {
+        tasks = await service
+          .list(authConfig, true, state, {
+            nextPageAfter: limit.toString(),
+          })
+          .then(r => r.client_tasks);
+      } else {
+        tasks = await service.list(authConfig, true, state).then(r => r.client_tasks);
+      }
+
+      const executionResults = await service.execute(authConfig, tasks);
 
       this.printYaml(executionResults);
     } catch (err) {

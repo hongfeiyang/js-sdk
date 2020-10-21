@@ -1,4 +1,4 @@
-import { ClientTaskQueueService } from '@meeco/sdk';
+import { ClientTaskQueueService, ClientTaskState } from '@meeco/sdk';
 import { expect } from '@oclif/test';
 import { readFileSync } from 'fs';
 import {
@@ -13,8 +13,14 @@ describe('client-task-queue:list', () => {
   customTest
     .stub(ClientTaskQueueService.prototype, 'list', list as any)
     .stdout()
-    .run(['client-task-queue:list', ...testUserAuth, ...testEnvironmentFile, '-s', 'Todo'])
-    .it('list tasks that client must perform', ctx => {
+    .run([
+      'client-task-queue:list',
+      ...testUserAuth,
+      ...testEnvironmentFile,
+      '-s',
+      ClientTaskState.Todo,
+    ])
+    .it('lists Client Tasks', ctx => {
       const expected = readFileSync(outputFixture('list-client-task-queue.output.yaml'), 'utf-8');
       expect(ctx.stdout.trim()).to.equal(expected.trim());
     });
@@ -28,7 +34,7 @@ describe('client-task-queue:list', () => {
       ...testEnvironmentFile,
       ...testGetAll,
       '-s',
-      'Todo',
+      ClientTaskState.Todo,
     ])
     .it('list all tasks for client when paginated', ctx => {
       const expected = readFileSync(outputFixture('list-client-task-queue.output.yaml'), 'utf-8');
@@ -67,5 +73,5 @@ function list() {
 }
 
 function listAll() {
-  return Promise.resolve(response);
+  return Promise.resolve(response.client_tasks);
 }
