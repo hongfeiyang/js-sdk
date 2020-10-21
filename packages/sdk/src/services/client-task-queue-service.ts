@@ -116,6 +116,8 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     credentials: IVaultToken & IKeystoreToken & IKEK & IDEK,
     tasks: ClientTask[]
   ): Promise<IClientTaskExecResult> {
+    this.logger.log(`Executing ${tasks.length} tasks`);
+
     for (const task of tasks) {
       if (task.work_type !== 'update_item_shares') {
         throw new MeecoServiceError(
@@ -161,6 +163,7 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
         task.state = ClientTaskState.Done;
         taskReport.completed.push(task);
       } catch (error) {
+        this.logger.warn(`Task with id=${task.id} failed!`);
         task.state = ClientTaskState.Failed;
         taskReport.failed.push({ ...task, failureReason: error });
       }
@@ -172,10 +175,12 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     ).ClientTaskQueueApi.clientTaskQueuePut({
       client_tasks: tasks.map(({ id }) => ({ id, state: ClientTaskState.InProgress })),
     });
+    this.logger.log('Set: in_progress');
 
     await Promise.all(tasks.map(runTask));
 
     // now update the tasks in the API
+    this.logger.log(`Task run completed, updating.`);
     const allTasks = taskReport.completed
       .concat(taskReport.failed)
       .map(({ id, state, report }) => ({ id, state, report }));
