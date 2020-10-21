@@ -291,13 +291,13 @@ export class ShareService extends Service<SharesApi> {
    * @param itemId
    */
   public async updateSharedItem(user: IVaultToken & IKeystoreToken & IKEK & IDEK, itemId: string) {
-    const { item, slots } = await new ItemService(this.environment).get(user, itemId);
+    const { item, slots } = await new ItemService(this.environment, this.logger).get(user, itemId);
 
     if (!item.own) {
       throw new MeecoServiceError(`Only Item owner can update shared Item.`);
     }
 
-    // retrieve the list of shares IDs and public keys via
+    this.logger.log('Retrieving Share Public Keys');
     const itemShares = await this.vaultAPIFactory(
       user.vault_access_token
     ).SharesApi.itemsIdSharesGet(itemId);
@@ -308,12 +308,15 @@ export class ShareService extends Service<SharesApi> {
       slots
     );
 
-    // put items/{id}/shares
-    // TODO skip/alert if no shares
-    return this.vaultAPIFactory(user.vault_access_token).SharesApi.itemsIdSharesPut(
-      itemId,
-      putItemSharesRequest
-    );
+    return this.vaultAPIFactory(user.vault_access_token)
+      .SharesApi.itemsIdSharesPut(itemId, putItemSharesRequest)
+      .catch(err => {
+        if ((<Response>err).status === 400) {
+          this.logger.warn('Error updating shares: ' + err.statusText);
+        }
+
+        throw err;
+      });
   }
 
   private async createPutItemSharesRequestBody(
@@ -337,7 +340,6 @@ export class ShareService extends Service<SharesApi> {
           dek: encryptedDek.serialized,
         };
 
-        this.logger.log('Re-Encrypt all slots');
         const slot_values = await this.convertSlotsToEncryptedValuesForShare(
           decryptedSlots,
           EncryptionKey.fromRaw(dek)
@@ -383,8 +385,9 @@ export class ShareService extends Service<SharesApi> {
       if (!ds.value && !slot_values.find(f => f.slot_id === ds.id)) {
         slot_values.push({
           slot_id: ds.id as string,
-          encrypted_value: '',
-        });
+          // TODO an API type bug prevents doing the right thing here
+          // encrypted_value: '',
+        } as any);
       }
     });
 

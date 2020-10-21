@@ -150,7 +150,7 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     credentials: IVaultToken & IKeystoreToken & IKEK & IDEK,
     tasks: ClientTask[]
   ): Promise<IClientTaskExecResult> {
-    const shareService = new ShareService(this.environment);
+    const shareService = new ShareService(this.environment, this.logger);
 
     const taskReport: IClientTaskExecResult = {
       completed: [],
@@ -165,7 +165,7 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
       } catch (error) {
         this.logger.warn(`Task with id=${task.id} failed!`);
         task.state = ClientTaskState.Failed;
-        taskReport.failed.push({ ...task, failureReason: error });
+        taskReport.failed.push({ ...task, failureReason: error?.body });
       }
     };
 
