@@ -4,9 +4,6 @@ import { getAllPaged, reducePages, resultHasNext } from '../util/paged';
 import Service, { IDEK, IKEK, IKeystoreToken, IPageOptions, IVaultToken } from './service';
 import { ShareService } from './share-service';
 
-/**
- * A ClientTask represents a task the client is supposed to perform.
- */
 interface IFailedClientTask extends ClientTask {
   failureReason: any;
 }
@@ -28,14 +25,24 @@ export interface IClientTaskExecResult {
   failed: IFailedClientTask[];
 }
 
+/**
+ * A ClientTask describes a set of API actions the client has been requested to perform,
+ * usually encrypting some data with their private keys.
+ */
 export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
   public getAPI(token: IVaultToken): ClientTaskQueueApi {
     return this.vaultAPIFactory(token.vault_access_token).ClientTaskQueueApi;
   }
 
+  /**
+   *
+   * @param suppressChangingClientTaskState If false, all 'todo' tasks retrieved by this call will change state to 'in_progress'.
+   * @param state Show only tasks with this state.
+   * @param options By default results are paginated, with 200 results per page.
+   */
   public async list(
     credentials: IVaultToken,
-    supressChangingClientTaskState: boolean = true,
+    suppressChangingClientTaskState: boolean = true,
     state: ClientTaskState = ClientTaskState.Todo,
     options?: IPageOptions
   ): Promise<ClientTaskQueueResponse> {
@@ -44,7 +51,7 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     ).ClientTaskQueueApi.clientTaskQueueGet(
       options?.nextPageAfter,
       options?.perPage,
-      supressChangingClientTaskState,
+      suppressChangingClientTaskState,
       state
     );
 
@@ -55,60 +62,77 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     return result;
   }
 
+  /**
+   *
+   * @param suppressChangingClientTaskState If false, all 'todo' tasks retrieved by this call will change state to 'in_progress'.
+   * @param state Show only tasks with this state.
+   */
   public async listAll(
     credentials: IVaultToken,
-    supressChangingClientTaskState: boolean = true,
+    suppressChangingClientTaskState: boolean = true,
     state: ClientTaskState = ClientTaskState.Todo
-  ): Promise<ClientTaskQueueResponse> {
+  ): Promise<ClientTask[]> {
     const api = this.vaultAPIFactory(credentials.vault_access_token).ClientTaskQueueApi;
     return getAllPaged(cursor =>
-      api.clientTaskQueueGet(cursor, undefined, supressChangingClientTaskState, state)
-    ).then(reducePages);
+      api.clientTaskQueueGet(cursor, undefined, suppressChangingClientTaskState, state)
+    )
+      .then(reducePages)
+      .then(result => result.client_tasks);
   }
 
+  /**
+   * Count all tasks that have state either 'todo' or 'in_progress'.
+   * May make multiple API calls, depending on number of tasks.
+   */
   public async countOutstandingTasks(credentials: IVaultToken): Promise<IOutstandingClientTasks> {
-    const api = this.vaultAPIFactory(credentials.vault_access_token).ClientTaskQueueApi;
-    const todoTasks = await api.clientTaskQueueGet(
-      undefined,
-      undefined,
-      true,
-      ClientTaskState.Todo
-    );
+    const allTasks = await this.listAll(credentials);
 
-    const inProgressTasks = await api.clientTaskQueueGet(
-      undefined,
-      undefined,
-      true,
-      ClientTaskState.InProgress
-    );
+    const initialCount = { todo: 0, in_progress: 0 };
+    const result = allTasks.reduce((acc, task) => {
+      if (task.state === ClientTaskState.Todo) {
+        acc.todo += 1;
+      } else if (task.state === ClientTaskState.InProgress) {
+        acc.in_progress += 1;
+      }
+      return acc;
+    }, initialCount);
 
-    return {
-      todo: todoTasks.client_tasks.length,
-      in_progress: inProgressTasks.client_tasks.length,
-    };
+    return result;
   }
 
-  public async executeClientTasks(
+  /**
+   * Execute the given ClientTasks, updating their state in the API.
+   * Currently, the only implemented task is 'update_item_share'.
+   *
+   * ClientTask state is set to 'in_progress' once execution begins.
+   * Any tasks with state 'in_progress' or 'done' will raise an exception.
+   * Tasks with state 'failed' will be retried.
+   *
+   * No tasks are initiated if any one of the tasks is unrecognized or cannot be started.
+   * @param tasks ClientTasks to be executed. Each must have state 'todo' or 'failed'.
+   * @param authData
+   */
+  public async execute(
     credentials: IVaultToken & IKeystoreToken & IKEK & IDEK,
-    listOfClientTasks: ClientTask[]
+    tasks: ClientTask[]
   ): Promise<IClientTaskExecResult> {
-    const remainingClientTasks: ClientTask[] = [];
-    const itemUpdateSharesTasks: ClientTask[] = [];
-    for (const task of listOfClientTasks) {
+    for (const task of tasks) {
       if (task.work_type !== 'update_item_shares') {
         throw new MeecoServiceError(
           `Do not know how to execute ClientTask of type ${task.work_type}`
         );
       }
+
+      if (task.state === ClientTaskState.InProgress || task.state === ClientTaskState.Done) {
+        throw new MeecoServiceError(
+          `Cannot execute ${task.work_type} task ${task.id} because it is already ${task.state}`
+        );
+      }
     }
-    if (remainingClientTasks.length) {
-      throw new MeecoServiceError(
-        `Do not know how to execute ClientTask of type ${remainingClientTasks[0].work_type}`
-      );
-    }
+
     const updateSharesTasksResult: IClientTaskExecResult = await this.updateSharesClientTasks(
       credentials,
-      itemUpdateSharesTasks
+      tasks
     );
 
     return updateSharesTasksResult;
@@ -120,9 +144,9 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
    * @param listOfClientTasks A list of update_item_shares tasks to run.
    * @param authData
    */
-  public async updateSharesClientTasks(
+  private async updateSharesClientTasks(
     credentials: IVaultToken & IKeystoreToken & IKEK & IDEK,
-    listOfClientTasks: ClientTask[]
+    tasks: ClientTask[]
   ): Promise<IClientTaskExecResult> {
     const shareService = new ShareService(this.environment);
 
@@ -142,13 +166,22 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
       }
     };
 
-    await Promise.all(listOfClientTasks.map(runTask));
+    // Set all tasks to in_progress
+    await this.vaultAPIFactory(
+      credentials.vault_access_token
+    ).ClientTaskQueueApi.clientTaskQueuePut({
+      client_tasks: tasks.map(({ id }) => ({ id, state: ClientTaskState.InProgress })),
+    });
+
+    await Promise.all(tasks.map(runTask));
 
     // now update the tasks in the API
     const allTasks = taskReport.completed
       .concat(taskReport.failed)
       .map(({ id, state, report }) => ({ id, state, report }));
-    this.vaultAPIFactory(credentials.vault_access_token).ClientTaskQueueApi.clientTaskQueuePut({
+    await this.vaultAPIFactory(
+      credentials.vault_access_token
+    ).ClientTaskQueueApi.clientTaskQueuePut({
       client_tasks: allTasks,
     });
 

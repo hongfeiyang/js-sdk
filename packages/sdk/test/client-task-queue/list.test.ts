@@ -1,5 +1,8 @@
 import { expect } from '@oclif/test';
-import { ClientTaskQueueService, ClientTaskState } from '../../src/services/client-task-queue-service';
+import {
+  ClientTaskQueueService,
+  ClientTaskState,
+} from '../../src/services/client-task-queue-service';
 import { MOCK_NEXT_PAGE_AFTER } from '../constants';
 import { customTest, environment, getOutputFixture, testUserAuth } from '../test-helpers';
 
@@ -52,7 +55,7 @@ describe('ClientTaskService.listAll', () => {
       );
 
       const expected = getOutputFixture('list-client-task-queue.output.json');
-      expect(result.client_tasks).to.deep.members(expected);
+      expect(result).to.deep.members(expected);
     });
 });
 
