@@ -24,7 +24,9 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     state: State = State.Todo,
     options?: IPageOptions
   ): Promise<ClientTaskQueueResponse> {
-    const result = await this.getAPI(credentials.vault_access_token).clientTaskQueueGet(
+    const result = await this.vaultAPIFactory(
+      credentials.vault_access_token
+    ).ClientTaskQueueApi.clientTaskQueueGet(
       options?.nextPageAfter,
       options?.perPage,
       supressChangingState,
@@ -43,14 +45,14 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     supressChangingState: boolean = true,
     state: State = State.Todo
   ): Promise<ClientTaskQueueResponse> {
-    const api = this.getAPI(credentials.vault_access_token);
+    const api = this.vaultAPIFactory(credentials.vault_access_token).ClientTaskQueueApi;
     return getAllPaged(cursor =>
       api.clientTaskQueueGet(cursor, undefined, supressChangingState, state)
     ).then(reducePages);
   }
 
   public async countOutstandingTasks(credentials: IVaultToken): Promise<IOutstandingClientTasks> {
-    const api = this.getAPI(credentials.vault_access_token);
+    const api = this.vaultAPIFactory(credentials.vault_access_token).ClientTaskQueueApi;
     const todoTasks = await api.clientTaskQueueGet(undefined, undefined, true, State.Todo);
 
     const inProgressTasks = await api.clientTaskQueueGet(
