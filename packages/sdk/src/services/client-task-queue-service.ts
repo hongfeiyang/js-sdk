@@ -101,7 +101,7 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
     credentials: IVaultToken & IDEK,
     listOfClientTasks: ClientTask[]
   ): Promise<{ completedTasks: ClientTask[]; failedTasks: IFailedClientTask[] }> {
-    const { vault_access_token, data_encryption_key } = credentials;
+    const { vault_access_token } = credentials;
     const sharesApi = this.vaultAPIFactory(vault_access_token).SharesApi;
     const itemsApi = this.vaultAPIFactory(vault_access_token).ItemApi;
 
@@ -117,7 +117,7 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
             sharesApi.itemsIdSharesGet(task.target_id),
           ]);
           const decryptedSlots = await Promise.all(
-            item.slots.map(s => ItemService.decryptSlot(s, data_encryption_key))
+            item.slots.map(s => ItemService.decryptSlot(credentials, s))
           );
           const dek = Service.cryppo.generateRandomKey();
           const newEncryptedSlots = await new ShareService(
