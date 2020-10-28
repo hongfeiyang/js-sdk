@@ -14,8 +14,8 @@ interface IFailedClientTask extends ClientTask {
 }
 
 export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
-  public getAPI(vaultToken: string): ClientTaskQueueApi {
-    return this.vaultAPIFactory(vaultToken).ClientTaskQueueApi;
+  public getAPI(token: IVaultToken): ClientTaskQueueApi {
+    return this.vaultAPIFactory(token.vault_access_token).ClientTaskQueueApi;
   }
 
   public async list(
