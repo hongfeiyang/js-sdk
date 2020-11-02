@@ -12,7 +12,7 @@ import {
 } from '@meeco/vault-api-sdk';
 import { DecryptedItem } from '../models/decrypted-item';
 import { EncryptionKey } from '../models/encryption-key';
-import { DecryptedSlot, IDecryptedSlot } from '../models/local-slot';
+import { SDKDecryptedSlot } from '../models/local-slot';
 import { MeecoServiceError } from '../models/service-error';
 import { getAllPaged, reducePages } from '../util/paged';
 import { VALUE_VERIFICATION_KEY_LENGTH, valueVerificationHash } from '../util/value-verification';
@@ -194,7 +194,10 @@ export class ShareService extends Service<SharesApi> {
    * @param user
    * @param shareId
    */
-  public async getShareDEK(credentials: IKeystoreToken & IKEK & IDEK, share: Share) {
+  public async getShareDEK(
+    credentials: IKeystoreToken & IKEK & IDEK,
+    share: Share
+  ): Promise<EncryptionKey> {
     let dataEncryptionKey: EncryptionKey;
 
     if (share.encrypted_dek) {
@@ -358,7 +361,7 @@ export class ShareService extends Service<SharesApi> {
   }
 
   private addMissingTemplateDefaultSlots(
-    decryptedSlots: DecryptedSlot[],
+    decryptedSlots: SDKDecryptedSlot[],
     slot_values: EncryptedSlotValue[]
   ) {
     decryptedSlots.forEach(ds => {
@@ -380,7 +383,7 @@ export class ShareService extends Service<SharesApi> {
    * encrypted with a shared data encryption key.
    */
   public async convertSlotsToEncryptedValuesForShare(
-    slots: IDecryptedSlot[],
+    slots: SDKDecryptedSlot[],
     sharedDataEncryptionKey: EncryptionKey
   ): Promise<EncryptedSlotValue[]> {
     const encryptions = slots
