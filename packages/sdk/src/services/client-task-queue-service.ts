@@ -1,8 +1,8 @@
 import { ClientTask, ClientTaskQueueApi, ClientTaskQueueResponse } from '@meeco/vault-api-sdk';
 import { EncryptionKey } from '../models/encryption-key';
+import { SlotHelpers } from '../models/local-slot';
 import { MeecoServiceError } from '../models/service-error';
 import { getAllPaged, reducePages, resultHasNext } from '../util/paged';
-import { ItemService } from './item-service';
 import Service, { IDEK, IPageOptions, IVaultToken } from './service';
 import { ShareService } from './share-service';
 
@@ -117,7 +117,7 @@ export class ClientTaskQueueService extends Service<ClientTaskQueueApi> {
             sharesApi.itemsIdSharesGet(task.target_id),
           ]);
           const decryptedSlots = await Promise.all(
-            item.slots.map(s => ItemService.decryptSlot(credentials, s))
+            item.slots.map(s => SlotHelpers.decryptSlot(credentials, s))
           );
           const dek = Service.cryppo.generateRandomKey();
           const newEncryptedSlots = await new ShareService(
