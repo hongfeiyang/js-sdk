@@ -1,15 +1,12 @@
-import { ItemService } from '@meeco/sdk';
+import { ShareService } from '@meeco/sdk';
 import { ClientTask, Slot } from '@meeco/vault-api-sdk';
 import { expect } from '@oclif/test';
-import * as nock from 'nock';
 import {
   ClientTaskQueueService,
   ClientTaskState,
 } from '../../src/services/client-task-queue-service';
 import { MOCK_NEXT_PAGE_AFTER } from '../constants';
 import { default as itemResponse } from '../fixtures/responses/item-response/basic';
-import { default as sharesResponse } from '../fixtures/responses/item-shares-response';
-import { default as itemSharesUpdateResponse } from '../fixtures/responses/item-shares-update-response';
 import { customTest, environment, getOutputFixture, testUserAuth } from '../test-helpers';
 
 describe('ClientTaskQueueService', () => {
@@ -29,9 +26,25 @@ describe('ClientTaskQueueService', () => {
   }
 
   describe('#execute', () => {
+    const doneTasksResult = [mockTask('a', ClientTaskState.Done)];
+    const inProgressTasksResult = [mockTask('a', ClientTaskState.InProgress)];
+
     customTest
-      .stub(ItemService.prototype, 'get', getSharedItem as any)
-      .nock('https://sandbox.meeco.me/vault', stubVault)
+      .stub(ShareService.prototype, 'updateSharedItem', getSharedItem as any)
+      .nock('https://sandbox.meeco.me/vault', api =>
+        api
+          .put(`/client_task_queue`, (body: any) =>
+            body.client_tasks.every(x => x.state === ClientTaskState.InProgress)
+          )
+          .matchHeader('Authorization', testUserAuth.vault_access_token)
+          .matchHeader('Meeco-Subscription-Key', 'environment_subscription_key')
+          .reply(200, { client_tasks: inProgressTasksResult })
+          // report done
+          .put(`/client_task_queue`, (body: any) =>
+            body.client_tasks.every(x => x.state === ClientTaskState.Done)
+          )
+          .reply(200, { client_tasks: doneTasksResult })
+      )
       .mockCryppo()
       .add('result', () =>
         new ClientTaskQueueService(environment).execute(testUserAuth, [
@@ -57,8 +70,23 @@ describe('ClientTaskQueueService', () => {
       .it('does not execute done tasks');
 
     customTest
-      .stub(ItemService.prototype, 'get', getSharedItem as any)
-      .nock('https://sandbox.meeco.me/vault', stubVault)
+      .stub(ShareService.prototype, 'updateSharedItem', getSharedItem as any)
+      .nock('https://sandbox.meeco.me/vault', api =>
+        api
+          .put(`/client_task_queue`, (body: any) =>
+            body.client_tasks.every(x => x.state === ClientTaskState.InProgress)
+          )
+          .matchHeader('Authorization', testUserAuth.vault_access_token)
+          .matchHeader('Meeco-Subscription-Key', 'environment_subscription_key')
+          .reply(200, { client_tasks: inProgressTasksResult })
+          // report done
+          .put(`/client_task_queue`, (body: any) =>
+            body.client_tasks.every(x => x.state === ClientTaskState.Done)
+          )
+          .matchHeader('Authorization', testUserAuth.vault_access_token)
+          .matchHeader('Meeco-Subscription-Key', 'environment_subscription_key')
+          .reply(200, { client_tasks: doneTasksResult })
+      )
       .mockCryppo()
       .add('result', () =>
         new ClientTaskQueueService(environment).execute(testUserAuth, [
@@ -69,39 +97,6 @@ describe('ClientTaskQueueService', () => {
         expect(result.completed.length).to.equal(1);
         expect(result.failed.length).to.equal(0);
       });
-
-    function stubVault(api: nock.Scope) {
-      const doneTasksResult = [mockTask('a', ClientTaskState.Done)];
-      const inProgressTasksResult = [mockTask('a', ClientTaskState.InProgress)];
-
-      api
-        .put(`/items/${itemId}/shares`)
-        .matchHeader('Authorization', testUserAuth.vault_access_token)
-        .matchHeader('Meeco-Subscription-Key', 'environment_subscription_key')
-        .reply(200, itemSharesUpdateResponse);
-
-      api
-        .put(`/client_task_queue`, (body: any) =>
-          body.client_tasks.every(x => x.state === ClientTaskState.InProgress)
-        )
-        .matchHeader('Authorization', testUserAuth.vault_access_token)
-        .matchHeader('Meeco-Subscription-Key', 'environment_subscription_key')
-        .reply(200, { client_tasks: inProgressTasksResult });
-
-      api
-        .get(`/items/${itemId}/shares`)
-        .matchHeader('Authorization', testUserAuth.vault_access_token)
-        .matchHeader('Meeco-Subscription-Key', 'environment_subscription_key')
-        .reply(200, sharesResponse);
-
-      api
-        .put(`/client_task_queue`, (body: any) =>
-          body.client_tasks.every(x => x.state === ClientTaskState.Done)
-        )
-        .matchHeader('Authorization', testUserAuth.vault_access_token)
-        .matchHeader('Meeco-Subscription-Key', 'environment_subscription_key')
-        .reply(200, { client_tasks: doneTasksResult });
-    }
 
     function getSharedItem() {
       return Promise.resolve({
