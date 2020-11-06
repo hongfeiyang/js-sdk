@@ -81,8 +81,6 @@ async function attachFile() {
 
     const keyEncryptionKey = localStorage.getItem('keyEncryptionKey') || '';
     const keystoreAccessToken = localStorage.getItem('keystoreAccessToken') || '';
-    const passphraseDerivedKey = localStorage.getItem('passphraseDerivedKey') || '';
-    const secret = localStorage.getItem('secret') || '';
 
     const progressUpdateFunc = (chunkBuffer: ArrayBuffer | null, percentageComplete: number) => {
       $set('fileUploadProgressBar', percentageComplete.toString());
@@ -103,14 +101,15 @@ async function attachFile() {
     // itemService now accepts authdata, as user could fetch shared item and not its own item through this endpoint.
     // therefore it requires additional information about auth
     const itemService = new ItemService(environment);
-    const itemFetchResult = await itemService.get(itemId, {
-      data_encryption_key: EncryptionKey.fromSerialized(privateDek),
-      vault_access_token: vaultAccessToken,
-      key_encryption_key: EncryptionKey.fromSerialized(keyEncryptionKey),
-      keystore_access_token: keystoreAccessToken,
-      passphrase_derived_key: EncryptionKey.fromSerialized(passphraseDerivedKey),
-      secret,
-    });
+    const itemFetchResult = await itemService.get(
+      {
+        data_encryption_key: EncryptionKey.fromSerialized(privateDek),
+        vault_access_token: vaultAccessToken,
+        key_encryption_key: EncryptionKey.fromSerialized(keyEncryptionKey),
+        keystore_access_token: keystoreAccessToken,
+      },
+      itemId
+    );
 
     const { attachment, dek: attachmentDek } = await fileUploadBrowser({
       file,
@@ -139,8 +138,10 @@ async function attachFile() {
       label: existingItem.label,
     });
     const updated = await itemService.update(
-      vaultAccessToken,
-      EncryptionKey.fromSerialized(privateDek),
+      {
+        vault_access_token: vaultAccessToken,
+        data_encryption_key: EncryptionKey.fromSerialized(privateDek),
+      },
       itemUpdateData
     );
     const slotId = updated.slots.find(slot => slot.attachment_id === attachment.id)?.id;
@@ -168,8 +169,6 @@ async function downloadAttachment() {
 
     const keyEncryptionKey = localStorage.getItem('keyEncryptionKey') || '';
     const keystoreAccessToken = localStorage.getItem('keystoreAccessToken') || '';
-    const passphraseDerivedKey = localStorage.getItem('passphraseDerivedKey') || '';
-    const secret = localStorage.getItem('secret') || '';
 
     let isSteamingMedia = false;
     const progressUpdateFunc = (
@@ -230,14 +229,15 @@ async function downloadAttachment() {
     // itemService now accepts authdata, as user could fetch shared item and not its own item through this endpoint.
     // therefore it requires additional information about auth
     const itemService = new ItemService(environment);
-    const itemFetchResult: any = await itemService.get(itemId, {
-      data_encryption_key: EncryptionKey.fromSerialized(dek),
-      vault_access_token: vaultAccessToken,
-      key_encryption_key: EncryptionKey.fromSerialized(keyEncryptionKey),
-      keystore_access_token: keystoreAccessToken,
-      passphrase_derived_key: EncryptionKey.fromSerialized(passphraseDerivedKey),
-      secret,
-    });
+    const itemFetchResult: any = await itemService.get(
+      {
+        data_encryption_key: EncryptionKey.fromSerialized(dek),
+        vault_access_token: vaultAccessToken,
+        key_encryption_key: EncryptionKey.fromSerialized(keyEncryptionKey),
+        keystore_access_token: keystoreAccessToken,
+      },
+      itemId
+    );
     const attachmentSlot = itemFetchResult.slots.find(slot => slot.id === slotId); // return type from the vault-api-sdk is wrong thus the type to any
 
     const downloadedFile = await fileDownloadBrowser({
@@ -291,8 +291,6 @@ async function attachThumbnail() {
     const vaultAccessToken = localStorage.getItem('vaultAccessToken') || '';
     const keyEncryptionKey = localStorage.getItem('keyEncryptionKey') || '';
     const keystoreAccessToken = localStorage.getItem('keystoreAccessToken') || '';
-    const passphraseDerivedKey = localStorage.getItem('passphraseDerivedKey') || '';
-    const secret = localStorage.getItem('secret') || '';
 
     const environment = new Environment({
       vault: {
@@ -307,14 +305,15 @@ async function attachThumbnail() {
     });
 
     const itemService = new ItemService(environment);
-    const itemFetchResult: any = await itemService.get(itemId, {
-      data_encryption_key: EncryptionKey.fromSerialized(privateDek),
-      vault_access_token: vaultAccessToken,
-      key_encryption_key: EncryptionKey.fromSerialized(keyEncryptionKey),
-      keystore_access_token: keystoreAccessToken,
-      passphrase_derived_key: EncryptionKey.fromSerialized(passphraseDerivedKey),
-      secret,
-    });
+    const itemFetchResult: any = await itemService.get(
+      {
+        data_encryption_key: EncryptionKey.fromSerialized(privateDek),
+        vault_access_token: vaultAccessToken,
+        key_encryption_key: EncryptionKey.fromSerialized(keyEncryptionKey),
+        keystore_access_token: keystoreAccessToken,
+      },
+      itemId
+    );
     if (!itemFetchResult) {
       return alert('Item not found');
     }
@@ -364,8 +363,6 @@ async function thumbnailDownload() {
     const vaultAccessToken = localStorage.getItem('vaultAccessToken') || '';
     const keyEncryptionKey = localStorage.getItem('keyEncryptionKey') || '';
     const keystoreAccessToken = localStorage.getItem('keystoreAccessToken') || '';
-    const passphraseDerivedKey = localStorage.getItem('passphraseDerivedKey') || '';
-    const secret = localStorage.getItem('secret') || '';
 
     const environment = new Environment({
       vault: {
@@ -380,14 +377,15 @@ async function thumbnailDownload() {
     });
 
     const itemService = new ItemService(environment);
-    const itemFetchResult: any = await itemService.get(itemId, {
-      data_encryption_key: EncryptionKey.fromSerialized(privateDek),
-      vault_access_token: vaultAccessToken,
-      key_encryption_key: EncryptionKey.fromSerialized(keyEncryptionKey),
-      keystore_access_token: keystoreAccessToken,
-      passphrase_derived_key: EncryptionKey.fromSerialized(passphraseDerivedKey),
-      secret,
-    });
+    const itemFetchResult: any = await itemService.get(
+      {
+        data_encryption_key: EncryptionKey.fromSerialized(privateDek),
+        vault_access_token: vaultAccessToken,
+        key_encryption_key: EncryptionKey.fromSerialized(keyEncryptionKey),
+        keystore_access_token: keystoreAccessToken,
+      },
+      itemId
+    );
     if (!itemFetchResult) {
       return alert('Item not found');
     }
